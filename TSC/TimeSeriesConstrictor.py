@@ -62,7 +62,7 @@ class TimeSeriesConstrictor:
     def outlier_detection(
         self,
         target_column,
-        outlier_dist="robust",
+        outlier_dist="robusst",
         window_size=3,
         median_lim=1,
         mode="run",
