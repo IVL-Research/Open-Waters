@@ -5,6 +5,7 @@ import plotly.graph_objs as go
 import glob
 
 #TOK
+#vad händer nu?
 
 class TimeSeriesConstrictor:
     """
