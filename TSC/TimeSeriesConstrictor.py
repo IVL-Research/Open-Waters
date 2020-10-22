@@ -70,15 +70,13 @@ class TimeSeriesConstrictor:
         plt.figure(figsize=(12, 5))
 
         # Set axis labels
-        # plt.ylabel(self.description) # How to insert the unit
-        kind = 'line'
-        for column in y_column:
-            try:
-                kind = self.metadata[column]["plot_mode"]
-            except:
-                pass
+        try:
+            plt.ylabel(self.description[y_column]['unit'])
+        except:
+            pass
 
-            self.dataframe[column].plot(kind=kind)
+        for column in y_column:
+            self.dataframe[column].plot()
 
         plt.title(y_column)
         plt.grid()
@@ -89,6 +87,32 @@ class TimeSeriesConstrictor:
             plt.close()
         else:
             plt.show()
+
+    def create_metadata(self, metadata_dict, target_column):
+
+        self.metadata[target_column] = dict()
+        for key in metadata_dict.keys():
+            self.metadata[target_column][key] = metadata_dict[key]
+
+    def create_description(self, target_column, var_def=None):
+
+        self.description[target_column] = dict()
+
+        # Read from variable definition file
+        if var_def:
+            try:
+                self.description[target_column]['info'] = var_def['Description'][target_column]
+                self.description[target_column]['unit'] = var_def['EngineeringUnit'][target_column]
+                self.description[target_column]['min limit'] = var_def['Min limit'][target_column]
+                self.description[target_column]['max limit'] = var_def['Max limit'][target_column]
+                self.description[target_column]['max constant values'] = var_def['MaxConstantValues'][target_column]
+            except KeyError:
+                pass
+
+        # Calculate descriptive statistics
+        statistics = self.dataframe[target_column].describe()
+        for ix, stat in enumerate(statistics):
+            self.description[target_column][statistics.index[ix]] = stat
 
     def outlier_detection(
         self,
@@ -117,34 +141,25 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column(output_column_name)
 
         # Create metadata dictionary for outliers
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "outlier_detection"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["outlier_dist"] = outlier_dist
-        self.metadata[new_column]["window_size"] = window_size
-        self.metadata[new_column]["median_lim"] = median_lim
-        self.metadata[new_column]["mode"] = mode
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-outliers of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "outlier_detection",
+                         "used_data_column": target_column,
+                         "outlier_dist": outlier_dist,
+                         "window_size": window_size,
+                         "median_lim": median_lim,
+                         "mode": mode,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where outliers have been removed
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "outlier_detection"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["outlier_dist"] = outlier_dist
-        self.metadata[new_column_2]["window_size"] = window_size
-        self.metadata[new_column_2]["median_lim"] = median_lim
-        self.metadata[new_column_2]["mode"] = mode
 
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where outliers of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "outlier_detection",
+                         "used_data_column": target_column,
+                         "outlier_dist": outlier_dist,
+                         "window_size": window_size,
+                         "median_lim": median_lim,
+                         "mode": mode}
+        self.create_metadata(metadata_dict, new_column_2)
 
         # Create temporary dataframe to use only inside this method
         outlier_detection_temp_df = pd.DataFrame()
@@ -177,6 +192,7 @@ class TimeSeriesConstrictor:
             print("No valid outlier_dist specified, doing nothing")
             outlier_detection_temp_df["Test"] = np.nan
             self.metadata[new_column]["outlier_dist"] = "None"
+
         if mode == "run":
             # Create column where 0="not outlier", 1="outlier"
             outlier_detection_temp_df["anomalyVec"] = np.zeros(len(self.dataframe))
@@ -196,10 +212,7 @@ class TimeSeriesConstrictor:
                 outlier_detection_temp_df["Test"].isna().sum()
                 - self.dataframe[target_column].isna().sum()
             )
-            self.description[new_column][
-                "NonCheckedData"
-            ] = "number of data points that were not possible to \
-            evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+
             self.metadata[new_column]["AnomalyProportion"] = (
                 outlier_detection_temp_df["anomalyVec"].sum()
                 / outlier_detection_temp_df["anomalyVec"].count()
@@ -209,6 +222,24 @@ class TimeSeriesConstrictor:
             self.dataframe[new_column_2] = self.dataframe[target_column].loc[
                 outlier_detection_temp_df["anomalyVec"] < 0.5
             ]
+
+            # Add description for outliers and pre-processing columns
+            self.create_description(new_column)
+            self.description[new_column]["info"] = (
+                "Data where all NON-outliers of " + target_column + " are set to nan"
+            )
+            self.description[new_column][
+                "NonCheckedData"
+            ] = "number of data points that were not possible to \
+            evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+
+            self.create_description(new_column_2)
+            self.description[new_column_2]["info"] = (
+                    "Data where outliers of " + target_column + " are set to nan"
+            )
+
+
+
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
