@@ -63,21 +63,31 @@ class TimeSeriesConstrictor:
     def plot_static(self, y_column, save_name='', **kwargs):
         """
         Returns and/or saves static plot, for export of results.
-        y_column is the column name in self.dataframe,
-        can be either a string or a list of strings.
+        y_column is the column name in self.dataframe.
         """
-        # Set fig size suitable for time series
-        plt.figure(figsize=(12, 5))
+
+
+        # Check if outlier column
+        if 'outlier' in y_column:
+            # Plot outliers as points above used data column
+            temp_df = self.dataframe[[y_column]].copy()
+            temp_df['Time'] = temp_df.index
+            fig, ax = plt.subplots(figsize=(12, 5))
+            self.dataframe[self.metadata[y_column]['used_data_column']].plot(ax=ax)
+            temp_df.plot(x='Time', y='outliers', kind='scatter', color='DarkOrange', ax=ax)
+        else:
+            # Set fig size suitable for time series
+            plt.figure(figsize=(12, 5))
+            # Plot y_column
+            self.dataframe[y_column].plot()
 
         # Set axis labels
         try:
             plt.ylabel(self.description[y_column]['unit'])
-        except:
+        except KeyError:
             pass
 
-        for column in y_column:
-            self.dataframe[column].plot()
-
+        # Set title and grid options
         plt.title(y_column)
         plt.grid()
         plt.xticks(rotation=90)
@@ -230,16 +240,13 @@ class TimeSeriesConstrictor:
             )
             self.description[new_column][
                 "NonCheckedData"
-            ] = "number of data points that were not possible to \
+            ] = "Number of data points that were not possible to \
             evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
 
             self.create_description(new_column_2)
             self.description[new_column_2]["info"] = (
                     "Data where outliers of " + target_column + " are set to nan"
             )
-
-
-
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
@@ -269,32 +276,22 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column(output_column_name)
 
         # Create metadata dictionary for frozen values
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "find_frozen_values"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["window_size"] = window_size
-        self.metadata[new_column]["var_lim_low"] = var_lim_low
-        self.metadata[new_column]["mode"] = mode
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-frozen values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "find_frozen_values",
+                         "used_data_column": target_column,
+                         "window_size": window_size,
+                         "var_lim_low": var_lim_low,
+                         "mode": mode,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where frozen values have been removed from target data
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "find_frozen_values"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["window_size"] = window_size
-        self.metadata[new_column_2]["var_lim_low"] = var_lim_low
-        self.metadata[new_column_2]["mode"] = mode
-
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where frozen values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "find_frozen_values",
+                         "used_data_column": target_column,
+                         "window_size": window_size,
+                         "var_lim_low": var_lim_low,
+                         "mode": mode}
+        self.create_metadata(metadata_dict, new_column_2)
 
         # create temporary dataframe
         frozen_values_temp_df = pd.DataFrame()
@@ -331,6 +328,17 @@ class TimeSeriesConstrictor:
             frozen_values_temp_df["anomalyVec"] < 0.5
         ]
 
+        # Create descriptions for the new columns
+        self.create_description(new_column)
+        self.description[new_column]["info"] = (
+                "Data where all NON-frozen values of " + target_column + " are set to nan"
+        )
+
+        self.create_description(new_column_2)
+        self.description[new_column_2]["info"] = (
+            "Data where frozen values of " + target_column + " are set to nan"
+        )
+
     def out_of_range_detection(self, target_column, min_limit, max_limit):
         """
         Find values outside/inside specified limits.
@@ -343,31 +351,22 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column("preprocessed")
 
         # Create metadata dictionary
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "out_of_range_detection"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["min_limit"] = min_limit
-        self.metadata[new_column]["max_limit"] = max_limit
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-out of range values of "
-            + target_column
-            + " are set to nan"
-        )
+        metadata_dict = {"method": "out_of_range_detection",
+                         "used_data_column": target_column,
+                         "min_limit": min_limit,
+                         "max_limit": max_limit,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "out_of_range_detection"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["min_limit"] = min_limit
-        self.metadata[new_column_2]["max_limit"] = max_limit
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where out of range values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "out_of_range_detection",
+                         "used_data_column": target_column,
+                         "min_limit": min_limit,
+                         "max_limit": max_limit}
+        self.create_metadata(metadata_dict, new_column_2)
+
+        # Detect data
         temp_df = pd.DataFrame()
         temp_df["Time"] = self.dataframe.index
         temp_df = temp_df.set_index("Time")
@@ -387,6 +386,19 @@ class TimeSeriesConstrictor:
             (self.dataframe[target_column] < max_limit)
             & (self.dataframe[target_column] > min_limit)
         ]
+
+        # Create descriptions
+        self.create_description(new_column)
+        self.description[new_column]["info"] = (
+                "Data where all NON-out of range values of "
+                + target_column
+                + " are set to nan"
+        )
+        self.create_description(new_column_2)
+        self.description[new_column_2]["info"] = (
+            "Data where out of range values of " + target_column + " are set to nan"
+        )
+
 
     def write_to_excel(self, file_name):
         """
