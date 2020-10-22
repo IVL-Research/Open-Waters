@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objs as go
+import matplotlib.pyplot as plt
 import glob
 
-#TOK
 
 class TimeSeriesConstrictor:
     """
@@ -59,6 +59,36 @@ class TimeSeriesConstrictor:
         fig.update_layout(showlegend=True)
 
         return fig
+
+    def plot_static(self, y_column, save_name='', **kwargs):
+        """
+        Returns and/or saves static plot, for export of results.
+        y_column is the column name in self.dataframe,
+        can be either a string or a list of strings.
+        """
+        # Set fig size suitable for time series
+        plt.figure(figsize=(12, 5))
+
+        # Set axis labels
+        # plt.ylabel(self.description) # How to insert the unit
+        kind = 'line'
+        for column in y_column:
+            try:
+                kind = self.metadata[column]["plot_mode"]
+            except:
+                pass
+
+            self.dataframe[column].plot(kind=kind)
+
+        plt.title(y_column)
+        plt.grid()
+        plt.xticks(rotation=90)
+
+        if not save_name == '':
+            plt.savefig(save_name, bbox_inches='tight')
+            plt.close()
+        else:
+            plt.show()
 
     def outlier_detection(
         self,
