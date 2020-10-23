@@ -348,6 +348,19 @@ class TimeSeriesConstrictor:
         # store file
         writer.save()
 
+    def read_tsc_excel(self, file_name):
+        """
+        Read data, metadata and descriptions from TSC excel file
+        """
+        # read data
+        self.dataframe = pd.read_excel(file_name, sheet_name='data', index_col=0)
+
+        # read metadata
+        self.metadata = pd.read_excel(path, sheet_name='metadata', index_col=0).to_dict()
+
+        # read description
+        self.description = pd.read_excel(path, sheet_name='description', index_col=0).to_dict()
+
     def create_target_column(self, target_column):
         """
         When creating a new column, always call this function first
