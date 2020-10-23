@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objs as go
+import matplotlib.pyplot as plt
 import glob
+import pptx
+from pptx.util import Inches, Pt
 
-#TOK
 
 class TimeSeriesConstrictor:
     """
@@ -60,6 +62,69 @@ class TimeSeriesConstrictor:
 
         return fig
 
+    def plot_static(self, y_column, save_name='', **kwargs):
+        """
+        Returns and/or saves static plot, for export of results.
+        y_column is the column name in self.dataframe.
+        """
+
+        # Check if outlier column
+        if 'outlier' in y_column:
+            # Plot outliers as points above used data column
+            temp_df = self.dataframe[[y_column]].copy()
+            temp_df['Time'] = temp_df.index
+            fig, ax = plt.subplots(figsize=(12, 5))
+            self.dataframe[self.metadata[y_column]['used_data_column']].plot(ax=ax)
+            temp_df.plot(x='Time', y=y_column, kind='scatter', color='DarkOrange', ax=ax)
+        else:
+            # Set fig size suitable for time series
+            plt.figure(figsize=(12, 5))
+            # Plot y_column
+            self.dataframe[y_column].plot()
+
+        # Set axis labels
+        try:
+            plt.ylabel(self.description[y_column]['unit'])
+        except KeyError:
+            pass
+
+        # Set title and grid options
+        plt.title(y_column)
+        plt.grid()
+        plt.xticks(rotation=90)
+
+        if not save_name == '':
+            plt.savefig(save_name, bbox_inches='tight')
+            plt.close()
+        else:
+            plt.show()
+
+    def create_metadata(self, metadata_dict, target_column):
+
+        self.metadata[target_column] = dict()
+        for key in metadata_dict.keys():
+            self.metadata[target_column][key] = metadata_dict[key]
+
+    def create_description(self, target_column, var_def=None):
+
+        self.description[target_column] = dict()
+
+        # Read from variable definition file
+        if var_def:
+            try:
+                self.description[target_column]['info'] = var_def['Description'][target_column]
+                self.description[target_column]['unit'] = var_def['EngineeringUnit'][target_column]
+                self.description[target_column]['min limit'] = var_def['Min limit'][target_column]
+                self.description[target_column]['max limit'] = var_def['Max limit'][target_column]
+                self.description[target_column]['max constant values'] = var_def['MaxConstantValues'][target_column]
+            except KeyError:
+                pass
+
+        # Calculate descriptive statistics
+        statistics = self.dataframe[target_column].describe()
+        for ix, stat in enumerate(statistics):
+            self.description[target_column][statistics.index[ix]] = stat
+
     def outlier_detection(
         self,
         target_column,
@@ -87,34 +152,25 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column(output_column_name)
 
         # Create metadata dictionary for outliers
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "outlier_detection"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["outlier_dist"] = outlier_dist
-        self.metadata[new_column]["window_size"] = window_size
-        self.metadata[new_column]["median_lim"] = median_lim
-        self.metadata[new_column]["mode"] = mode
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-outliers of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "outlier_detection",
+                         "used_data_column": target_column,
+                         "outlier_dist": outlier_dist,
+                         "window_size": window_size,
+                         "median_lim": median_lim,
+                         "mode": mode,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where outliers have been removed
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "outlier_detection"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["outlier_dist"] = outlier_dist
-        self.metadata[new_column_2]["window_size"] = window_size
-        self.metadata[new_column_2]["median_lim"] = median_lim
-        self.metadata[new_column_2]["mode"] = mode
 
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where outliers of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "outlier_detection",
+                         "used_data_column": target_column,
+                         "outlier_dist": outlier_dist,
+                         "window_size": window_size,
+                         "median_lim": median_lim,
+                         "mode": mode}
+        self.create_metadata(metadata_dict, new_column_2)
 
         # Create temporary dataframe to use only inside this method
         outlier_detection_temp_df = pd.DataFrame()
@@ -147,6 +203,7 @@ class TimeSeriesConstrictor:
             print("No valid outlier_dist specified, doing nothing")
             outlier_detection_temp_df["Test"] = np.nan
             self.metadata[new_column]["outlier_dist"] = "None"
+
         if mode == "run":
             # Create column where 0="not outlier", 1="outlier"
             outlier_detection_temp_df["anomalyVec"] = np.zeros(len(self.dataframe))
@@ -166,10 +223,7 @@ class TimeSeriesConstrictor:
                 outlier_detection_temp_df["Test"].isna().sum()
                 - self.dataframe[target_column].isna().sum()
             )
-            self.description[new_column][
-                "NonCheckedData"
-            ] = "number of data points that were not possible to \
-            evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+
             self.metadata[new_column]["AnomalyProportion"] = (
                 outlier_detection_temp_df["anomalyVec"].sum()
                 / outlier_detection_temp_df["anomalyVec"].count()
@@ -179,6 +233,21 @@ class TimeSeriesConstrictor:
             self.dataframe[new_column_2] = self.dataframe[target_column].loc[
                 outlier_detection_temp_df["anomalyVec"] < 0.5
             ]
+
+            # Add description for outliers and pre-processing columns
+            self.create_description(new_column)
+            self.description[new_column]["info"] = (
+                "Data where all NON-outliers of " + target_column + " are set to nan"
+            )
+            self.description[new_column][
+                "NonCheckedData"
+            ] = "Number of data points that were not possible to \
+            evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+
+            self.create_description(new_column_2)
+            self.description[new_column_2]["info"] = (
+                    "Data where outliers of " + target_column + " are set to nan"
+            )
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
@@ -208,32 +277,22 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column(output_column_name)
 
         # Create metadata dictionary for frozen values
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "find_frozen_values"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["window_size"] = window_size
-        self.metadata[new_column]["var_lim_low"] = var_lim_low
-        self.metadata[new_column]["mode"] = mode
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-frozen values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "find_frozen_values",
+                         "used_data_column": target_column,
+                         "window_size": window_size,
+                         "var_lim_low": var_lim_low,
+                         "mode": mode,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where frozen values have been removed from target data
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "find_frozen_values"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["window_size"] = window_size
-        self.metadata[new_column_2]["var_lim_low"] = var_lim_low
-        self.metadata[new_column_2]["mode"] = mode
-
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where frozen values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "find_frozen_values",
+                         "used_data_column": target_column,
+                         "window_size": window_size,
+                         "var_lim_low": var_lim_low,
+                         "mode": mode}
+        self.create_metadata(metadata_dict, new_column_2)
 
         # create temporary dataframe
         frozen_values_temp_df = pd.DataFrame()
@@ -270,6 +329,17 @@ class TimeSeriesConstrictor:
             frozen_values_temp_df["anomalyVec"] < 0.5
         ]
 
+        # Create descriptions for the new columns
+        self.create_description(new_column)
+        self.description[new_column]["info"] = (
+                "Data where all NON-frozen values of " + target_column + " are set to nan"
+        )
+
+        self.create_description(new_column_2)
+        self.description[new_column_2]["info"] = (
+            "Data where frozen values of " + target_column + " are set to nan"
+        )
+
     def out_of_range_detection(self, target_column, min_limit, max_limit):
         """
         Find values outside/inside specified limits.
@@ -282,31 +352,22 @@ class TimeSeriesConstrictor:
         new_column_2 = self.create_target_column("preprocessed")
 
         # Create metadata dictionary
-        self.metadata[new_column] = dict()
-        self.metadata[new_column]["method"] = "out_of_range_detection"
-        self.metadata[new_column]["used_data_column"] = target_column
-        self.metadata[new_column]["min_limit"] = min_limit
-        self.metadata[new_column]["max_limit"] = max_limit
-        self.metadata[new_column]["plot_mode"] = "markers"
-        self.metadata[new_column]["plot_markers"] = "circle-open"
-
-        self.description[new_column] = dict()
-        self.description[new_column]["info"] = (
-            "Data where all NON-out of range values of "
-            + target_column
-            + " are set to nan"
-        )
+        metadata_dict = {"method": "out_of_range_detection",
+                         "used_data_column": target_column,
+                         "min_limit": min_limit,
+                         "max_limit": max_limit,
+                         "plot_mode": "markers",
+                         "plot_markers": "circle-open"}
+        self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary
-        self.metadata[new_column_2] = dict()
-        self.metadata[new_column_2]["method"] = "out_of_range_detection"
-        self.metadata[new_column_2]["used_data_column"] = target_column
-        self.metadata[new_column_2]["min_limit"] = min_limit
-        self.metadata[new_column_2]["max_limit"] = max_limit
-        self.description[new_column_2] = dict()
-        self.description[new_column_2]["info"] = (
-            "Data where out of range values of " + target_column + " are set to nan"
-        )
+        metadata_dict = {"method": "out_of_range_detection",
+                         "used_data_column": target_column,
+                         "min_limit": min_limit,
+                         "max_limit": max_limit}
+        self.create_metadata(metadata_dict, new_column_2)
+
+        # Detect data
         temp_df = pd.DataFrame()
         temp_df["Time"] = self.dataframe.index
         temp_df = temp_df.set_index("Time")
@@ -326,6 +387,19 @@ class TimeSeriesConstrictor:
             (self.dataframe[target_column] < max_limit)
             & (self.dataframe[target_column] > min_limit)
         ]
+
+        # Create descriptions
+        self.create_description(new_column)
+        self.description[new_column]["info"] = (
+                "Data where all NON-out of range values of "
+                + target_column
+                + " are set to nan"
+        )
+        self.create_description(new_column_2)
+        self.description[new_column_2]["info"] = (
+            "Data where out of range values of " + target_column + " are set to nan"
+        )
+
 
     def write_to_excel(self, file_name):
         """
@@ -347,6 +421,109 @@ class TimeSeriesConstrictor:
 
         # store file
         writer.save()
+
+    def write_summary_pptx(self, presentation_name):
+        """
+        Creates a pptx including time series plots, metadata and descriptions of all columns in TSC dataframe.
+        The user is recommended to apply format changes after exporting to pptx-format
+        """
+        prs = pptx.Presentation()
+
+        # Presentation settings
+        title_page_slide_layout = prs.slide_layouts[0]
+        title_slide_layout = prs.slide_layouts[5]
+
+        # Add title page
+        slide = prs.slides.add_slide(title_page_slide_layout)
+        title = slide.shapes.title
+        title.text = "TSConstrictor Summary"
+        subtitle = slide.placeholders[1]
+        subtitle.text = "Autogenerated " + str(datetime.date.today())
+
+        # Add analysis for each column in TSConstrictor dataframe
+        for column in self.dataframe.columns:
+
+            # Time series slide
+            slide = prs.slides.add_slide(title_slide_layout)
+            title = slide.shapes.title
+            title.text = column + ' - time series'
+
+            # Create plot
+            self.plot_static(y_column=column, save_name='timeseries.png')
+
+            # Add plot to slide
+            left = Inches(0.5)
+            top = Inches(2)
+            width = Inches(8)
+            pic = slide.shapes.add_picture("timeseries.png", left, top, width=width)
+            os.remove('timeseries.png')
+
+            # Statistics and metadata slide
+            slide = prs.slides.add_slide(title_slide_layout)
+            title = slide.shapes.title
+            title.text = column + ' \n Statistics and description'
+            shapes = slide.shapes
+
+            # Find number of rows of metadata and description
+            try:
+                desc_rows = len(self.description[column])
+            except KeyError:
+                desc_rows = 0
+                print('No description found for ' + column)
+            try:
+                meta_rows = len(self.metadata[column])
+            except KeyError:
+                meta_rows = 0
+                print('No metadata found for ' + column)
+
+            # Set number of rows to the max of metadata and description
+            rows = max(meta_rows, desc_rows) + 1
+
+            # Set column indices for metadata and description
+            if desc_rows > 0 and meta_rows > 0:
+                cols = 5
+                desc_col = 0
+                meta_col = 3
+            elif desc_rows + meta_rows == 0:
+                continue
+            else:
+                cols = 2
+                desc_col = 0
+                meta_col = 0
+
+            # Set table properties
+            left = top = Inches(1.5)
+            width = Inches(8)
+            height = Inches(0.6)
+
+            table = shapes.add_table(rows, cols, left, top, width, height).table
+
+            # Fill table with descirption and metadata
+            if desc_rows > 0:
+                # write column headings
+                table.cell(0, desc_col).text = 'Description'
+                table.cell(0, desc_col + 1).text = 'Value'
+
+                # write body cells
+                count = 1
+                for key in self.description[column].keys():
+                    table.cell(count, desc_col).text = key
+                    table.cell(count, desc_col + 1).text = str(self.description[column][key])
+                    count += 1
+
+            if meta_rows > 0:
+                # write column headings
+                table.cell(0, meta_col).text = 'Description'
+                table.cell(0, meta_col + 1).text = 'Value'
+
+                # write body cells
+                count = 1
+                for key in self.metadata[column].keys():
+                    table.cell(count, meta_col).text = key
+                    table.cell(count, meta_col + 1).text = str(self.metadata[column][key])
+                    count += 1
+
+        prs.save(presentation_name)
 
     def create_target_column(self, target_column):
         """
