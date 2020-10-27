@@ -263,7 +263,7 @@ class TimeSeriesConstrictor:
         self,
         target_column,
         window_size=3,
-        var_lim_low=4,
+        var_lim_low=1,
         mode="run",
         output_column_name="preprocessed",
         outlier_column_name="frozen_values",
@@ -322,6 +322,10 @@ class TimeSeriesConstrictor:
                 print('Window size not an integer of time series frequency, setting new window size to: ' + str(
                     window_size))
                 shift_points = int(window_size / df_frequency)
+            else:
+                shift_points = int(shift_points)
+        else:
+            shift_points = window_size
 
         # Process entire window as frozen
         frozen_values_temp_df["anomalyVec"] = (
