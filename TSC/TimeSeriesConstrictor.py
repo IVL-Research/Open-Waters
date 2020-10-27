@@ -325,7 +325,7 @@ class TimeSeriesConstrictor:
             else:
                 shift_points = int(shift_points)
         else:
-            shift_points = window_size
+            shift_points = int(window_size)
 
         # Process entire window as frozen
         frozen_values_temp_df["anomalyVec"] = (
