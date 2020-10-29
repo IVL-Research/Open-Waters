@@ -186,8 +186,18 @@ class TimeSeriesConstrictor:
         )
 
         if outlier_dist == "robust":
-            # Mean absolute deviation
-            mad_val = self.dataframe[target_column].mad(**kwargs)
+            # The robust method compares the deviation of a data point (target_column) and the median of the previous window (val) 
+            # with the MAD of the entire data series. 
+            # MAD=Median absolute deviation=The median of the absolute deviations from the datas median
+            
+            # MATLAB:
+            # madVal=median(abs(dataNoNans-median(dataNoNans)));
+            
+            # .mad in pandas is mean abs. deviation
+            #mad_val = self.dataframe[target_column].mad(**kwargs)
+            
+            # New attempt:
+            mad_val=(self.dataframe[target_column]-self.dataframe[target_column].median()).abs().median()
 
             # Compare value with val
             outlier_detection_temp_df["Test"] = CONSTANT_1 * (
