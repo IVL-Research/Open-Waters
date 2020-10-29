@@ -253,15 +253,17 @@ class TimeSeriesConstrictor:
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
+        self.dataframe.index = pd.to_datetime(self.dataframe.index)
 
     def read_csv(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_csv(path, index_col=index_col, **kwargs)
+        self.dataframe.index = pd.to_datetime(self.dataframe.index)
 
     def find_frozen_values(
         self,
         target_column,
         window_size=3,
-        var_lim_low=4,
+        var_lim_low=1,
         mode="run",
         output_column_name="preprocessed",
         outlier_column_name="frozen_values",
@@ -310,16 +312,31 @@ class TimeSeriesConstrictor:
             frozen_values_temp_df["Test"] < var_lim_low, "anomalyVec"
         ] = 1
 
+        # calculate number of shift points if the window size is given as timestring
+        if isinstance(window_size, str):
+            df_frequency = (self.dataframe.index[-1] - self.dataframe.index[0]) / (len(self.dataframe.index) - 1)
+            shift_points = window_size / df_frequency
+
+            if not shift_points.is_integer():
+                window_size = round(shift_points) * df_frequency
+                print('Window size not an integer of time series frequency, setting new window size to: ' + str(
+                    window_size))
+                shift_points = int(window_size / df_frequency)
+            else:
+                shift_points = int(shift_points)
+        else:
+            shift_points = int(window_size)
+
         # Process entire window as frozen
         frozen_values_temp_df["anomalyVec"] = (
             frozen_values_temp_df["anomalyVec"]
-            .shift(-window_size + 1, fill_value=0)
+            .shift(-shift_points + 1, fill_value=0)
             .rolling(window_size)
             .max(**kwargs)
         )
 
         # first number of data points becomes nan due to window size, these are not detected as frozen and set to 0 here
-        frozen_values_temp_df["anomalyVec"][0 : window_size - 1] = 0
+        frozen_values_temp_df["anomalyVec"][0 : shift_points - 1] = 0
 
         # Add frozen values to new column
         self.dataframe[new_column] = (
