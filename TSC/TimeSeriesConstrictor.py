@@ -29,7 +29,7 @@ class TimeSeriesConstrictor:
         else:
             self.description = dict()
 
-    def plot(self, y_column="all", default_mode="lines", **kwargs):
+    def plot(self, y_column="all", default_size=3, **kwargs):
         """
         Returns interactive plot.
         y_column is the column name in self.dataframe,
@@ -44,11 +44,14 @@ class TimeSeriesConstrictor:
             y_column = [y_column]
         for col in y_column:
             marker_dict = dict()
-            temp_data = self.dataframe[col].dropna()
-            mode = default_mode
+            temp_data = self.dataframe[col]
+            mode = "lines+markers"
+            marker_dict["size"] = default_size
+            line_dict = {'width': 1}
             try:
                 mode = self.metadata[col]["plot_mode"]
                 marker_dict["symbol"] = self.metadata[col]["plot_markers"]
+                marker_dict["size"] = self.metadata[col]["marker_size"]
             except:
                 pass
             fig.add_trace(
@@ -58,6 +61,8 @@ class TimeSeriesConstrictor:
                     name=col,
                     mode=mode,
                     marker=marker_dict,
+                    line=line_dict,
+                    connectgaps=False
                 )
             )
         fig.update_layout(showlegend=True)
@@ -161,7 +166,8 @@ class TimeSeriesConstrictor:
                          "median_lim": median_lim,
                          "mode": mode,
                          "plot_mode": "markers",
-                         "plot_markers": "circle-open"}
+                         "plot_markers": "circle-open",
+                         "marker_size": 8}
         self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where outliers have been removed
@@ -297,7 +303,8 @@ class TimeSeriesConstrictor:
                          "var_lim_low": var_lim_low,
                          "mode": mode,
                          "plot_mode": "markers",
-                         "plot_markers": "circle-open"}
+                         "plot_markers": "circle-open",
+                         "marker_size": 8}
         self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary for column where frozen values have been removed from target data
@@ -386,7 +393,8 @@ class TimeSeriesConstrictor:
                          "min_limit": min_limit,
                          "max_limit": max_limit,
                          "plot_mode": "markers",
-                         "plot_markers": "circle-open"}
+                         "plot_markers": "circle-open",
+                         "marker_size": 8}
         self.create_metadata(metadata_dict, new_column)
 
         # Create metadata dictionary
