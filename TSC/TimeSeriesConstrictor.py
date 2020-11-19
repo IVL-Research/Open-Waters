@@ -329,7 +329,7 @@ class TimeSeriesConstrictor:
             frozen_values_temp_df["Test"] < var_lim_low, "anomalyVec"
         ] = 1
 
-        # calculate number of shift points if the window size is given as timestring
+        # calculate number of shift points if the window size is given as timestrin
         if isinstance(window_size, str):
             df_frequency = (self.dataframe.index[-1] - self.dataframe.index[0]) / (len(self.dataframe.index) - 1)
             shift_points = window_size / df_frequency
