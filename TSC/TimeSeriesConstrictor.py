@@ -141,6 +141,7 @@ class TimeSeriesConstrictor:
         mode="run",
         output_column_name="preprocessed",
         outlier_column_name="outliers",
+        return_only=False,
         **kwargs
     ):
         """
@@ -153,32 +154,6 @@ class TimeSeriesConstrictor:
         CONSTANT_1 = (
             0.675  # Standard distribution constant, portion of data within 1 STD.
         )
-
-        # Create name for column
-        new_column = self.create_target_column(outlier_column_name)
-        new_column_2 = self.create_target_column(output_column_name)
-
-        # Create metadata dictionary for outliers
-        metadata_dict = {"method": "outlier_detection",
-                         "used_data_column": target_column,
-                         "outlier_dist": outlier_dist,
-                         "window_size": window_size,
-                         "median_lim": median_lim,
-                         "mode": mode,
-                         "plot_mode": "markers",
-                         "plot_markers": "circle-open",
-                         "marker_size": 8}
-        self.create_metadata(metadata_dict, new_column)
-
-        # Create metadata dictionary for column where outliers have been removed
-
-        metadata_dict = {"method": "outlier_detection",
-                         "used_data_column": target_column,
-                         "outlier_dist": outlier_dist,
-                         "window_size": window_size,
-                         "median_lim": median_lim,
-                         "mode": mode}
-        self.create_metadata(metadata_dict, new_column_2)
 
         # Create temporary dataframe to use only inside this method
         outlier_detection_temp_df = pd.DataFrame()
@@ -229,43 +204,76 @@ class TimeSeriesConstrictor:
                 outlier_detection_temp_df["Test"] > median_lim, "anomalyVec"
             ] = 1
 
-            # Create own column with outliers
-            self.dataframe[new_column] = self.dataframe[
-                target_column
-            ] * outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
+            if not return_only:
 
-            # The number of data points that were not possible to check with current test due to Nans inside the moving window.
-            # Nans in original data are exclude from the sum.
-            self.metadata[new_column]["NonCheckedData"] = dict()
-            self.metadata[new_column]["NonCheckedData"] = (
-                outlier_detection_temp_df["Test"].isna().sum()
-                - self.dataframe[target_column].isna().sum()
-            )
+                # Create name for column
+                new_column = self.create_target_column(outlier_column_name)
+                new_column_2 = self.create_target_column(output_column_name)
 
-            self.metadata[new_column]["AnomalyProportion"] = (
-                outlier_detection_temp_df["anomalyVec"].sum()
-                / outlier_detection_temp_df["anomalyVec"].count()
-            )
+                # Create metadata dictionary for outliers
+                metadata_dict = {"method": "outlier_detection",
+                                 "used_data_column": target_column,
+                                 "outlier_dist": outlier_dist,
+                                 "window_size": window_size,
+                                 "median_lim": median_lim,
+                                 "mode": mode,
+                                 "plot_mode": "markers",
+                                 "plot_markers": "circle-open",
+                                 "marker_size": 8}
+                self.create_metadata(metadata_dict, new_column)
 
-            # Create column where outliers have been removed from the target data
-            self.dataframe[new_column_2] = self.dataframe[target_column].loc[
-                outlier_detection_temp_df["anomalyVec"] < 0.5
-            ]
+                # Create metadata dictionary for column where outliers have been removed
 
-            # Add description for outliers and pre-processing columns
-            self.create_description(new_column)
-            self.description[new_column]["info"] = (
-                "Data where all NON-outliers of " + target_column + " are set to nan"
-            )
-            self.description[new_column][
-                "NonCheckedData"
-            ] = "Number of data points that were not possible to \
-            evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+                metadata_dict = {"method": "outlier_detection",
+                                 "used_data_column": target_column,
+                                 "outlier_dist": outlier_dist,
+                                 "window_size": window_size,
+                                 "median_lim": median_lim,
+                                 "mode": mode}
+                self.create_metadata(metadata_dict, new_column_2)
 
-            self.create_description(new_column_2)
-            self.description[new_column_2]["info"] = (
-                    "Data where outliers of " + target_column + " are set to nan"
-            )
+                # Create own column with outliers
+                self.dataframe[new_column] = self.dataframe[
+                    target_column
+                ] * outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
+
+                # The number of data points that were not possible to check with current test due to Nans inside the moving window.
+                # Nans in original data are exclude from the sum.
+                self.metadata[new_column]["NonCheckedData"] = dict()
+                self.metadata[new_column]["NonCheckedData"] = (
+                    outlier_detection_temp_df["Test"].isna().sum()
+                    - self.dataframe[target_column].isna().sum()
+                )
+
+                self.metadata[new_column]["AnomalyProportion"] = (
+                    outlier_detection_temp_df["anomalyVec"].sum()
+                    / outlier_detection_temp_df["anomalyVec"].count()
+                )
+
+                # Create column where outliers have been removed from the target data
+                self.dataframe[new_column_2] = self.dataframe[target_column].loc[
+                    outlier_detection_temp_df["anomalyVec"] < 0.5
+                ]
+
+                # Add description for outliers and pre-processing columns
+                self.create_description(new_column)
+                self.description[new_column]["info"] = (
+                    "Data where all NON-outliers of " + target_column + " are set to nan"
+                )
+                self.description[new_column][
+                    "NonCheckedData"
+                ] = "Number of data points that were not possible to \
+                evaluate with the current test due to Nans inside the moving window. Nans in original data are exclude from the sum."
+
+                self.create_description(new_column_2)
+                self.description[new_column_2]["info"] = (
+                        "Data where outliers of " + target_column + " are set to nan"
+                )
+            else:
+                outlier_return = self.dataframe[target_column] * \
+                                 outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
+                return outlier_return
+
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
@@ -283,6 +291,7 @@ class TimeSeriesConstrictor:
         mode="run",
         output_column_name="preprocessed",
         outlier_column_name="frozen_values",
+        return_only=False,
         **kwargs
     ):
         """
@@ -291,29 +300,6 @@ class TimeSeriesConstrictor:
         are kept and one dataframe column called "preprocessed" where frozen data points
         are removed.
         """
-
-        # Create name for column
-        new_column = self.create_target_column(outlier_column_name)
-        new_column_2 = self.create_target_column(output_column_name)
-
-        # Create metadata dictionary for frozen values
-        metadata_dict = {"method": "find_frozen_values",
-                         "used_data_column": target_column,
-                         "window_size": window_size,
-                         "var_lim_low": var_lim_low,
-                         "mode": mode,
-                         "plot_mode": "markers",
-                         "plot_markers": "circle-open",
-                         "marker_size": 8}
-        self.create_metadata(metadata_dict, new_column)
-
-        # Create metadata dictionary for column where frozen values have been removed from target data
-        metadata_dict = {"method": "find_frozen_values",
-                         "used_data_column": target_column,
-                         "window_size": window_size,
-                         "var_lim_low": var_lim_low,
-                         "mode": mode}
-        self.create_metadata(metadata_dict, new_column_2)
 
         # create temporary dataframe
         frozen_values_temp_df = pd.DataFrame()
@@ -355,54 +341,61 @@ class TimeSeriesConstrictor:
         # first number of data points becomes nan due to window size, these are not detected as frozen and set to 0 here
         frozen_values_temp_df["anomalyVec"][0 : shift_points - 1] = 0
 
-        # Add frozen values to new column
-        self.dataframe[new_column] = (
-            self.dataframe[target_column] * frozen_values_temp_df["anomalyVec"]
-        ).replace(0, np.nan)
+        if not return_only:
+            # Create name for column
+            new_column = self.create_target_column(outlier_column_name)
+            new_column_2 = self.create_target_column(output_column_name)
 
-        # Add column with removed frozen values from raw data
-        self.dataframe[new_column_2] = self.dataframe[target_column].loc[
-            frozen_values_temp_df["anomalyVec"] < 0.5
-        ]
+            # Create metadata dictionary for frozen values
+            metadata_dict = {"method": "find_frozen_values",
+                             "used_data_column": target_column,
+                             "window_size": window_size,
+                             "var_lim_low": var_lim_low,
+                             "mode": mode,
+                             "plot_mode": "markers",
+                             "plot_markers": "circle-open",
+                             "marker_size": 8}
+            self.create_metadata(metadata_dict, new_column)
 
-        # Create descriptions for the new columns
-        self.create_description(new_column)
-        self.description[new_column]["info"] = (
-                "Data where all NON-frozen values of " + target_column + " are set to nan"
-        )
+            # Create metadata dictionary for column where frozen values have been removed from target data
+            metadata_dict = {"method": "find_frozen_values",
+                             "used_data_column": target_column,
+                             "window_size": window_size,
+                             "var_lim_low": var_lim_low,
+                             "mode": mode}
+            self.create_metadata(metadata_dict, new_column_2)
 
-        self.create_description(new_column_2)
-        self.description[new_column_2]["info"] = (
-            "Data where frozen values of " + target_column + " are set to nan"
-        )
+            # Add frozen values to new column
+            self.dataframe[new_column] = (
+                self.dataframe[target_column] * frozen_values_temp_df["anomalyVec"]
+            ).replace(0, np.nan)
 
-    def out_of_range_detection(self, target_column, min_limit, max_limit):
+            # Add column with removed frozen values from raw data
+            self.dataframe[new_column_2] = self.dataframe[target_column].loc[
+                frozen_values_temp_df["anomalyVec"] < 0.5
+            ]
+
+            # Create descriptions for the new columns
+            self.create_description(new_column)
+            self.description[new_column]["info"] = (
+                    "Data where all NON-frozen values of " + target_column + " are set to nan"
+            )
+
+            self.create_description(new_column_2)
+            self.description[new_column_2]["info"] = (
+                "Data where frozen values of " + target_column + " are set to nan"
+            )
+        else:
+            frozen_return = self.dataframe[target_column] * frozen_values_temp_df["anomalyVec"].replace(0, np.nan)
+            return frozen_return
+
+    def out_of_range_detection(self, target_column, min_limit, max_limit, return_only=False):
         """
         Find values outside/inside specified limits.
         Creates one dataframe column called "out_of_range" where data points that are out of range
         are kept and one dataframe column called "preprocessed" where data points that are out of range
         are removed.
         """
-        # Create name for column
-        new_column = self.create_target_column("out_of_range")
-        new_column_2 = self.create_target_column("preprocessed")
-
-        # Create metadata dictionary
-        metadata_dict = {"method": "out_of_range_detection",
-                         "used_data_column": target_column,
-                         "min_limit": min_limit,
-                         "max_limit": max_limit,
-                         "plot_mode": "markers",
-                         "plot_markers": "circle-open",
-                         "marker_size": 8}
-        self.create_metadata(metadata_dict, new_column)
-
-        # Create metadata dictionary
-        metadata_dict = {"method": "out_of_range_detection",
-                         "used_data_column": target_column,
-                         "min_limit": min_limit,
-                         "max_limit": max_limit}
-        self.create_metadata(metadata_dict, new_column_2)
 
         # Detect data
         temp_df = pd.DataFrame()
@@ -416,26 +409,51 @@ class TimeSeriesConstrictor:
             (self.dataframe[target_column] < min_limit)
         ] = 1
 
-        self.dataframe[new_column] = (
-            temp_df["out_of_range_binary"] * self.dataframe[target_column]
-        ).replace(0, np.nan)
+        if not return_only:
+            # Create name for column
+            new_column = self.create_target_column("out_of_range")
+            new_column_2 = self.create_target_column("preprocessed")
 
-        self.dataframe[new_column_2] = self.dataframe[target_column][
-            (self.dataframe[target_column] < max_limit)
-            & (self.dataframe[target_column] > min_limit)
-        ]
+            # Create metadata dictionary
+            metadata_dict = {"method": "out_of_range_detection",
+                             "used_data_column": target_column,
+                             "min_limit": min_limit,
+                             "max_limit": max_limit,
+                             "plot_mode": "markers",
+                             "plot_markers": "circle-open",
+                             "marker_size": 8}
+            self.create_metadata(metadata_dict, new_column)
 
-        # Create descriptions
-        self.create_description(new_column)
-        self.description[new_column]["info"] = (
-                "Data where all NON-out of range values of "
-                + target_column
-                + " are set to nan"
-        )
-        self.create_description(new_column_2)
-        self.description[new_column_2]["info"] = (
-            "Data where out of range values of " + target_column + " are set to nan"
-        )
+            # Create metadata dictionary
+            metadata_dict = {"method": "out_of_range_detection",
+                             "used_data_column": target_column,
+                             "min_limit": min_limit,
+                             "max_limit": max_limit}
+            self.create_metadata(metadata_dict, new_column_2)
+
+            self.dataframe[new_column] = (
+                temp_df["out_of_range_binary"] * self.dataframe[target_column]
+            ).replace(0, np.nan)
+
+            self.dataframe[new_column_2] = self.dataframe[target_column][
+                (self.dataframe[target_column] < max_limit)
+                & (self.dataframe[target_column] > min_limit)
+            ]
+
+            # Create descriptions
+            self.create_description(new_column)
+            self.description[new_column]["info"] = (
+                    "Data where all NON-out of range values of "
+                    + target_column
+                    + " are set to nan"
+            )
+            self.create_description(new_column_2)
+            self.description[new_column_2]["info"] = (
+                "Data where out of range values of " + target_column + " are set to nan"
+            )
+        else:
+            out_of_range_return = (temp_df["out_of_range_binary"] * self.dataframe[target_column]).replace(0, np.nan)
+            return out_of_range_return
 
 
     def write_to_excel(self, file_name):
