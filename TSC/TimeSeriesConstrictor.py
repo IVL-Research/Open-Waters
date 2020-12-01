@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 import glob
 import pptx
 from pptx.util import Inches, Pt
-
+import ipywidgets as widgets
+from ipywidgets import interact, Layout
 
 class TimeSeriesConstrictor:
     """
@@ -105,6 +106,132 @@ class TimeSeriesConstrictor:
             plt.close()
         else:
             plt.show()
+
+    def parameter_tuning(self, methods_dict, start_date='2020-01-01', stop_date='2021-01-01'):
+        """
+        Interactive plot to tune pre-processing method parameters using sliders.
+        The plot is updated upon changing slider values, target column or method.
+        The method does not store the calculated values, and the values are calculated upon each update.
+
+        The methods and their respective options and settings to be evaluated are defined in the methods_dict.
+        E.g:
+
+        methods_dict = {'outlier_detection':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
+                                                        'description': '"Var lim low"'},
+                                        'window_size':{'min':0, 'max':30, 'step':1,
+                                                        'description': '"Window size"'}},
+                    'find_frozen_values':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
+                                                        'description': '"Var lim low"'},
+                                        'window_size':{'min':0, 'max':30, 'step':1,
+                                                        'description': '"Window size"'}},
+                   'out_of_range_detection':{'min_limit':{'min':-100, 'max':100, 'step':5,
+                                                        'description': '"Min limit"'},
+                                        'max_limit':{'min':0, 'max':300, 'step':5,
+                                                        'description': '"Max limit"'}}}
+
+        """
+
+        # Date picker widgets
+        start_date = widgets.DatePicker(description='Start', disabled=False, value=pd.to_datetime(start_date))
+        display(start_date)
+        stop_date = widgets.DatePicker(description='Stop', disabled=False, value=pd.to_datetime(stop_date))
+        display(stop_date)
+
+        # Default parameter sliders
+        global s1, s2, s3, s4
+        s1 = widgets.FloatSlider(min=0, max=100, step=1, value=1,
+                                 description='', layout=Layout(width='50%'))
+        s2 = widgets.FloatSlider(min=0, max=100, step=1, value=1,
+                                 description='', layout=Layout(width='50%'))
+        s3 = widgets.FloatSlider(min=0, max=100, step=1, value=1,
+                                 description='', layout=Layout(width='50%'))
+        s4 = widgets.FloatSlider(min=0, max=100, step=1, value=1,
+                                 description='', layout=Layout(width='50%'))
+
+        # Method and target column selection
+        method_list = widgets.Select(
+            options=list(methods_dict.keys()),
+            value=list(methods_dict.keys())[0],
+            description='Methods',
+            disabled=False, layout=Layout(width='50%', height='80px'))
+
+        column_list = widgets.Select(
+            options=self.dataframe.columns,
+            value=self.dataframe.columns[0],
+            description='Variables',
+            disabled=False, layout=Layout(width='50%', height='200px'))
+
+        # Initialize figure
+        fig = go.Figure()
+        fig.update_layout(legend=dict(orientation="h",
+                                      yanchor="bottom",
+                                      y=1.02,
+                                      xanchor="right",
+                                      x=1),
+                          margin=dict(l=20, r=20, t=25, b=20))
+
+        @interact
+        def update_plot(method=method_list, column=column_list, default_1=s1, default_2=s2, default_3=s3, default_4=s4):
+
+            """
+            Each time the update_plot function is called, the slider settings are updated
+            and a new calculation string is created.
+            """
+
+            count = 1
+            calc_str = 'self.' + method + '(target_column="' + column + '"'  # Initialize calculation string
+
+            for slider in methods_dict[method]:
+
+                # Update slider settings
+                for option in methods_dict[method][slider]:
+                    option_str = 's' + str(count) + '.' + option + '=' + str(methods_dict[method][slider][option])
+                    exec(option_str)
+
+                # Add parameter options to calculation string
+                value = eval('default_' + str(count))
+                if slider == 'window_size':
+                    value = int(value)
+                calc_str = calc_str + ',' + slider + '=' + str(value)
+
+                count += 1
+
+            # Disable unused sliders
+            while count <= 4:
+                option_str = 's' + str(count) + '.' + 'disabled' + '=True'
+                exec(option_str)
+                count += 1
+
+            calc_str = calc_str + ',return_only=True)'
+
+            # Calculate results
+            df = eval(calc_str)  # Evaluate the calculation string
+            df = df.loc[start_date.value:stop_date.value]  # Preprocessed results
+
+            plot_df = pd.DataFrame(self.dataframe[column].loc[start_date.value:stop_date.value])  # Raw data
+            plot_df[method] = df
+            plot_x = plot_df.index
+
+            # Plot results
+            fig.data = []  # Clear figure data
+
+            for col in plot_df.columns:
+                temp_data = plot_df[col]
+                mode = "lines+markers"
+                marker_dict = {"size": 3}
+                line_dict = {'width': 1}
+                fig.add_trace(
+                    go.Scattergl(  # Using Scattergl instead of Scatter to speed up rendering
+                        x=plot_x,
+                        y=temp_data,
+                        name=col,
+                        mode=mode,
+                        marker=marker_dict,
+                        line=line_dict,
+                        connectgaps=False
+                    ))
+
+            fig.show()
 
     def create_metadata(self, metadata_dict, target_column):
 
