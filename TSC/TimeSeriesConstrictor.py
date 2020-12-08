@@ -56,7 +56,7 @@ class TimeSeriesConstrictor:
             except:
                 pass
             fig.add_trace(
-                go.Scatter(
+                go.Scattergl(
                     x=temp_data.index,
                     y=temp_data,
                     name=col,
