@@ -310,13 +310,12 @@ class TimeSeriesConstrictor:
 
         for col in encoded:
             new_column = self.create_target_column(col)
-            add_preprocessed_column(self=self,
-                                    data=encoded[col],
-                                    method='one_hot_encoded',
-                                    parameters=kwargs,
-                                    used_column=target_column,
-                                    column_name=new_column,
-                                    metadata={})
+            self.add_preprocessed_column(data=encoded[col],
+                                         method='one_hot_encoded',
+                                         parameters=kwargs,
+                                         used_column=target_column,
+                                         column_name=new_column,
+                                         metadata={})
 
     def smoothing(
         self,
