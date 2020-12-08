@@ -295,6 +295,29 @@ class TimeSeriesConstrictor:
 
         self.create_description(column_name)
 
+    def one_hot_encoder(self, target_column, **kwargs):
+        """
+        Perform One Hot Encoding using pandas.get_dummies() and store data and metadata to the TSC object.
+
+        Parameters
+        -----------
+        target_column : str
+            Target column in TSC.dataframe
+        **kwargs : dict
+            Optional keyword arguments to pd.get_dummies()
+        """
+        encoded = pd.get_dummies(self.dataframe[target_column], **kwargs)
+
+        for col in encoded:
+            new_column = self.create_target_column(col)
+            add_preprocessed_column(self=self,
+                                    data=encoded[col],
+                                    method='one_hot_encoded',
+                                    parameters=kwargs,
+                                    used_column=target_column,
+                                    column_name=new_column,
+                                    metadata={})
+
     def smoothing(
         self,
         target_column,
