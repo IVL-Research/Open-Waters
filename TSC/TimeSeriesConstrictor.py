@@ -313,7 +313,7 @@ class TimeSeriesConstrictor:
             self.add_preprocessed_column(data=encoded[col],
                                          method='one_hot_encoded',
                                          parameters=kwargs,
-                                         used_column=target_column,
+                                         target_column=target_column,
                                          column_name=new_column,
                                          metadata={})
 
