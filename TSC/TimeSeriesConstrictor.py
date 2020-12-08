@@ -10,6 +10,7 @@ import pptx
 from pptx.util import Inches, Pt
 import ipywidgets as widgets
 from ipywidgets import interact, Layout
+from scipy import stats
 
 class TimeSeriesConstrictor:
     """
@@ -316,6 +317,32 @@ class TimeSeriesConstrictor:
                                          target_column=target_column,
                                          column_name=new_column,
                                          metadata={})
+
+    def z_score(self, target_column, nan_policy='omit', column_name='z_score', **kwargs):
+        """
+            Perform Z-score calculation using scipy.stats.zscore and store data and metadata to the TSC object.
+
+            Parameters
+            -----------
+            target_column : str
+                Target column in TSC.dataframe
+            nan_policy : str
+                Defines how to handle when input contains nan. 'propagate' returns nan,
+                'raise' throws an error, 'omit' performs the calculations ignoring nan values. Default is 'omit'.
+            column_name : str
+                Defines the name of the new column in TSC.dataframe containing the z-scores
+            **kwargs : dict
+                Optional keyword arguments to scipy.stats.zscore()
+            """
+
+        score = stats.zscore(self.dataframe[target_column], nan_policy=nan_policy, **kwargs)
+        new_column = self.create_target_column(column_name)
+        self.add_preprocessed_column(data=score,
+                                     method='z_score',
+                                     parameters=kwargs,
+                                     target_column=target_column,
+                                     column_name=new_column,
+                                     metadata={})
 
     def smoothing(
         self,
