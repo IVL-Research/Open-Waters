@@ -259,8 +259,42 @@ class TimeSeriesConstrictor:
         statistics = self.dataframe[target_column].describe()
         for ix, stat in enumerate(statistics):
             self.description[target_column][statistics.index[ix]] = stat
-        
-            
+
+    def add_preprocessed_column(self, data, method, parameters, target_column, column_name='preprocessed', metadata={},
+                                **kwargs):
+        """
+        Add data preprocessed by arbitrary method to TSC dataframe and store the corresponding metadata.
+
+        Parameters
+        -----------
+        data : pd.Series or np.array
+            Preprocessed data, must be same length as TSC.dataframe
+        method : str
+            Name of method used for preprocessing (including package name), eg 'scipy.some_method'
+        parameters : dict
+            Dict of parameter values used for preprocessing, eg {'param1': 3, 'param2': 0.14}
+        used_column : str
+            Name of column used for preprocessing
+        column_name : str
+            Name of added column
+        metadata : dict
+            Metadata returned by the preprocessing method and/or plot settings
+        """
+
+        column_name = self.create_target_column(column_name)
+        self.dataframe[column_name] = data
+        md_dict = {'method': method, 'target_column': target_column}
+
+        for item in parameters:
+            md_dict[item] = parameters[item]
+
+        for item in metadata:
+            md_dict[item] = metadata[item]
+
+        self.create_metadata(md_dict, column_name)
+
+        self.create_description(column_name)
+
     def smoothing(
         self,
         target_column,
@@ -273,17 +307,13 @@ class TimeSeriesConstrictor:
         """
         Smoothens data.
         """
-
-
-
         # Create name for column
         new_column = self.create_target_column(output_column_name)
-        
 
         if smoothing_technique == "exponential":
             
             # Create own column with smoothened data
-            # Är det enl nedan jag behöver skriva för att skicka vidare värden på alpha? Trodde det skulle räcka att bara 
+            # Ã„r det enl nedan jag behÃ¶ver skriva fÃ¶r att skicka vidare vÃ¤rden pÃ¥ alpha? Trodde det skulle rÃ¤cka att bara
             # skriva "alpha"?
             self.dataframe[new_column] = self.dataframe[
                 target_column].ewm(alpha=alpha, adjust=False).mean()
@@ -295,7 +325,6 @@ class TimeSeriesConstrictor:
                          "used_data_column": target_column,
                          "smoothing_technique": smoothing_technique,
                          "alpha": alpha}
-                            
         
         elif smoothing_technique == "movAv":
             self.dataframe[new_column] = self.dataframe[target_column].rolling(window=window_size).mean()
@@ -305,16 +334,10 @@ class TimeSeriesConstrictor:
                          "used_data_column": target_column,
                          "smoothing_technique": smoothing_technique,
                          "window_size": window_size}
-                
-        
-        
-        
+
         self.create_metadata(metadata_dict, new_column)
         
         self.create_description(new_column)
-        
-        
-        
 
     def outlier_detection(
         self,
