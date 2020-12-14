@@ -116,8 +116,8 @@ class TimeSeriesConstrictor:
         The methods and their respective options and settings to be evaluated are defined in the methods_dict.
         E.g:
 
-        methods_dict = {'outlier_detection':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
-                                                        'description': '"Var lim low"'},
+        methods_dict = {'outlier_detection':{'median_lim':{'min':0, 'max':5, 'step':0.05,
+                                                        'description': '"Median limit"'},
                                         'window_size':{'min':0, 'max':30, 'step':1,
                                                         'description': '"Window size"'}},
                     'find_frozen_values':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
