@@ -116,8 +116,8 @@ class TimeSeriesConstrictor:
         The methods and their respective options and settings to be evaluated are defined in the methods_dict.
         E.g:
 
-        methods_dict = {'outlier_detection':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
-                                                        'description': '"Var lim low"'},
+        methods_dict = {'outlier_detection':{'median_lim':{'min':0, 'max':5, 'step':0.05,
+                                                        'description': '"Median limit"'},
                                         'window_size':{'min':0, 'max':30, 'step':1,
                                                         'description': '"Window size"'}},
                     'find_frozen_values':{'var_lim_low':{'min':0, 'max':5, 'step':0.05,
@@ -215,11 +215,21 @@ class TimeSeriesConstrictor:
             # Plot results
             fig.data = []  # Clear figure data
 
+            # Methods to plot only markers and not lines
+            marker_functions = ["outlier_detection"]
+            line_dict = {}
+            marker_dict = {}
+
             for col in plot_df.columns:
                 temp_data = plot_df[col]
-                mode = "lines+markers"
-                marker_dict = {"size": 3}
-                line_dict = {'width': 1}
+                if col in marker_functions:
+                    mode = "markers"
+                    marker_dict["symbol"] = "circle-open"
+                    marker_dict["size"] = 6
+                else:
+                    mode = "lines+markers"
+                    marker_dict["size"]= 3
+                    line_dict['width']= 1
                 fig.add_trace(
                     go.Scattergl(  # Using Scattergl instead of Scatter to speed up rendering
                         x=plot_x,
@@ -259,6 +269,62 @@ class TimeSeriesConstrictor:
         statistics = self.dataframe[target_column].describe()
         for ix, stat in enumerate(statistics):
             self.description[target_column][statistics.index[ix]] = stat
+        
+            
+    def smoothing(
+        self,
+        target_column,
+        smoothing_technique="exponential",
+        alpha=0.2,
+        window_size=3,
+        output_column_name="preprocessed",
+        **kwargs
+    ):
+        """
+        Smoothens data.
+        """
+
+
+
+        # Create name for column
+        new_column = self.create_target_column(output_column_name)
+        
+
+        if smoothing_technique == "exponential":
+            
+            # Create own column with smoothened data
+            # Är det enl nedan jag behöver skriva för att skicka vidare värden på alpha? Trodde det skulle räcka att bara 
+            # skriva "alpha"?
+            self.dataframe[new_column] = self.dataframe[
+                target_column].ewm(alpha=alpha, adjust=False).mean()
+            
+            self.dataframe[new_column][self.dataframe[target_column].isnull()]=np.nan
+            
+            # Create metadata dictionary for column with smoothened data
+            metadata_dict = {"method": "smoothing",
+                         "used_data_column": target_column,
+                         "smoothing_technique": smoothing_technique,
+                         "alpha": alpha}
+                            
+        
+        elif smoothing_technique == "movAv":
+            self.dataframe[new_column] = self.dataframe[target_column].rolling(window=window_size).mean()
+             
+            # Create metadata dictionary for column with smoothened data
+            metadata_dict = {"method": "smoothing",
+                         "used_data_column": target_column,
+                         "smoothing_technique": smoothing_technique,
+                         "window_size": window_size}
+                
+        
+        
+        
+        self.create_metadata(metadata_dict, new_column)
+        
+        self.create_description(new_column)
+        
+        
+        
 
     def add_preprocessed_column(self, data, method, parameters, target_column, column_name='preprocessed', metadata={},
                                 **kwargs):
@@ -410,10 +476,17 @@ class TimeSeriesConstrictor:
             # New attempt:
             mad_val=(self.dataframe[target_column]-self.dataframe[target_column].median()).abs().median()
 
+            target_median = self.dataframe[target_column].median()
+            abs_diff_to_median = (self.dataframe[target_column] - target_median).abs()
+            median_of_abs_diff_to_median = abs_diff_to_median.median()
+
+
             # Compare value with val
             outlier_detection_temp_df["Test"] = CONSTANT_1 * (
                 (self.dataframe[target_column] - val).abs() / mad_val
             )
+
+            
         elif outlier_dist == "gaussian":
             # Standard deviation
             dataStd = self.dataframe[target_column].std(**kwargs)
