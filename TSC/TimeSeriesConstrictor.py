@@ -217,37 +217,29 @@ class TimeSeriesConstrictor:
 
             # Methods to plot only markers and not lines
             marker_functions = ["outlier_detection"]
+            line_dict = {}
+            marker_dict = {}
 
             for col in plot_df.columns:
                 temp_data = plot_df[col]
-                marker_dict = dict()
                 if col in marker_functions:
                     mode = "markers"
                     marker_dict["symbol"] = "circle-open"
                     marker_dict["size"] = 6
-                    fig.add_trace(
-                        go.Scattergl(  # Using Scattergl instead of Scatter to speed up rendering
-                            x=plot_x,
-                            y=temp_data,
-                            name=col,
-                            mode=mode,
-                            marker=marker_dict,
-                            connectgaps=False
-                        ))
                 else:
                     mode = "lines+markers"
-                    marker_dict = {"size": 3}
-                    line_dict = {'width': 1}
-                    fig.add_trace(
-                        go.Scattergl(  # Using Scattergl instead of Scatter to speed up rendering
-                            x=plot_x,
-                            y=temp_data,
-                            name=col,
-                            mode=mode,
-                            marker=marker_dict,
-                            line=line_dict,
-                            connectgaps=False
-                        ))
+                    marker_dict["size"]= 3
+                    line_dict['width']= 1
+                fig.add_trace(
+                    go.Scattergl(  # Using Scattergl instead of Scatter to speed up rendering
+                        x=plot_x,
+                        y=temp_data,
+                        name=col,
+                        mode=mode,
+                        marker=marker_dict,
+                        line=line_dict,
+                        connectgaps=False
+                    ))
 
             fig.show()
 
