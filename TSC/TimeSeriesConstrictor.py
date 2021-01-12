@@ -79,6 +79,8 @@ class TimeSeriesConstrictor:
         # Check if outlier column
         if 'outlier' in y_column:
             # Plot outliers as points above used data column
+            if y_column not in self.metadata.keys():
+                return
             temp_df = self.dataframe[[y_column]].copy()
             temp_df['Time'] = temp_df.index
             fig, ax = plt.subplots(figsize=(12, 5))
@@ -579,8 +581,11 @@ class TimeSeriesConstrictor:
 
 
     def read_excel(self, path, index_col=0, **kwargs):
-        self.dataframe = pd.read_excel(path, index_col=index_col, **kwargs)
+        self.dataframe = pd.read_excel(path, index_col=index_col, engine="openpyxl",**kwargs)
         self.dataframe.index = pd.to_datetime(self.dataframe.index)
+        if (self.dataframe.index.dtype != self.dataframe.index.tz_localize(None).dtype):
+            print("Note that timezone information has been removed from index at import!")
+        self.dataframe.index = self.dataframe.index.tz_localize(None)
         
         for column in self.dataframe.columns:
             self.create_description(column)
@@ -791,13 +796,13 @@ class TimeSeriesConstrictor:
         Read data, metadata and descriptions from TSC excel file
         """
         # read data
-        self.dataframe = pd.read_excel(file_name, sheet_name='data', index_col=0)
+        self.dataframe = pd.read_excel(file_name, sheet_name='data', index_col=0, engine="openpyxl")
 
         # read metadata
-        self.metadata = pd.read_excel(path, sheet_name='metadata', index_col=0).to_dict()
+        self.metadata = pd.read_excel(path, sheet_name='metadata', index_col=0, engine="openpyxl").to_dict()
 
         # read description
-        self.description = pd.read_excel(path, sheet_name='description', index_col=0).to_dict()
+        self.description = pd.read_excel(path, sheet_name='description', index_col=0, engine="openpyxl").to_dict()
         
         
     def write_summary_pptx(self, presentation_name):
@@ -820,86 +825,88 @@ class TimeSeriesConstrictor:
 
         # Add analysis for each column in TSConstrictor dataframe
         for column in self.dataframe.columns:
+            if self.dataframe[column].dtype != np.dtype('O'):
+                # Create plot
+                self.plot_static(y_column=column, save_name='timeseries.png')
+                if not os.path.isfile('timeseries.png'):
+                    continue
 
-            # Time series slide
-            slide = prs.slides.add_slide(title_slide_layout)
-            title = slide.shapes.title
-            title.text = column + ' - time series'
+                # Time series slide     
+                slide = prs.slides.add_slide(title_slide_layout)
+                title = slide.shapes.title
+                title.text = column + ' - time series'
+                
+                # Add plot to slide
+                left = Inches(0.5)
+                top = Inches(2)
+                width = Inches(8)
+                pic = slide.shapes.add_picture("timeseries.png", left, top, width=width)
+                os.remove('timeseries.png')
 
-            # Create plot
-            self.plot_static(y_column=column, save_name='timeseries.png')
+                # Statistics and metadata slide
+                slide = prs.slides.add_slide(title_slide_layout)
+                title = slide.shapes.title
+                title.text = column + ' \n Statistics and description'
+                shapes = slide.shapes
 
-            # Add plot to slide
-            left = Inches(0.5)
-            top = Inches(2)
-            width = Inches(8)
-            pic = slide.shapes.add_picture("timeseries.png", left, top, width=width)
-            os.remove('timeseries.png')
+                # Find number of rows of metadata and description
+                try:
+                    desc_rows = len(self.description[column])
+                except KeyError:
+                    desc_rows = 0
+                    print('No description found for ' + column)
+                try:
+                    meta_rows = len(self.metadata[column])
+                except KeyError:
+                    meta_rows = 0
+                    print('No metadata found for ' + column)
 
-            # Statistics and metadata slide
-            slide = prs.slides.add_slide(title_slide_layout)
-            title = slide.shapes.title
-            title.text = column + ' \n Statistics and description'
-            shapes = slide.shapes
+                # Set number of rows to the max of metadata and description
+                rows = max(meta_rows, desc_rows) + 1
 
-            # Find number of rows of metadata and description
-            try:
-                desc_rows = len(self.description[column])
-            except KeyError:
-                desc_rows = 0
-                print('No description found for ' + column)
-            try:
-                meta_rows = len(self.metadata[column])
-            except KeyError:
-                meta_rows = 0
-                print('No metadata found for ' + column)
+                # Set column indices for metadata and description
+                if desc_rows > 0 and meta_rows > 0:
+                    cols = 5
+                    desc_col = 0
+                    meta_col = 3
+                elif desc_rows + meta_rows == 0:
+                    continue
+                else:
+                    cols = 2
+                    desc_col = 0
+                    meta_col = 0
 
-            # Set number of rows to the max of metadata and description
-            rows = max(meta_rows, desc_rows) + 1
+                # Set table properties
+                left = top = Inches(1.5)
+                width = Inches(8)
+                height = Inches(0.6)
 
-            # Set column indices for metadata and description
-            if desc_rows > 0 and meta_rows > 0:
-                cols = 5
-                desc_col = 0
-                meta_col = 3
-            elif desc_rows + meta_rows == 0:
-                continue
-            else:
-                cols = 2
-                desc_col = 0
-                meta_col = 0
+                table = shapes.add_table(rows, cols, left, top, width, height).table
 
-            # Set table properties
-            left = top = Inches(1.5)
-            width = Inches(8)
-            height = Inches(0.6)
+                # Fill table with descirption and metadata
+                if desc_rows > 0:
+                    # write column headings
+                    table.cell(0, desc_col).text = 'Description'
+                    table.cell(0, desc_col + 1).text = 'Value'
 
-            table = shapes.add_table(rows, cols, left, top, width, height).table
+                    # write body cells
+                    count = 1
+                    for key in self.description[column].keys():
+                        table.cell(count, desc_col).text = key
+                        table.cell(count, desc_col + 1).text = str(self.description[column][key])
+                        count += 1
 
-            # Fill table with descirption and metadata
-            if desc_rows > 0:
-                # write column headings
-                table.cell(0, desc_col).text = 'Description'
-                table.cell(0, desc_col + 1).text = 'Value'
+                if meta_rows > 0:
+                    # write column headings
+                    table.cell(0, meta_col).text = 'Description'
+                    table.cell(0, meta_col + 1).text = 'Value'
 
-                # write body cells
-                count = 1
-                for key in self.description[column].keys():
-                    table.cell(count, desc_col).text = key
-                    table.cell(count, desc_col + 1).text = str(self.description[column][key])
-                    count += 1
-
-            if meta_rows > 0:
-                # write column headings
-                table.cell(0, meta_col).text = 'Description'
-                table.cell(0, meta_col + 1).text = 'Value'
-
-                # write body cells
-                count = 1
-                for key in self.metadata[column].keys():
-                    table.cell(count, meta_col).text = key
-                    table.cell(count, meta_col + 1).text = str(self.metadata[column][key])
-                    count += 1
+                    # write body cells
+                    count = 1
+                    for key in self.metadata[column].keys():
+                        table.cell(count, meta_col).text = key
+                        table.cell(count, meta_col + 1).text = str(self.metadata[column][key])
+                        count += 1
 
         prs.save(presentation_name)
 
