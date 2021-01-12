@@ -52,8 +52,14 @@ print(tsc.dataframe)
 
 ## Plot methods ##
 
-# interactive plot of all signals
+# interactive plot of all signals, directly in the notebook
 tsc.plot()
+
+# interactive plot of all signals, saved to html file
+# this is good for large datasets. The html file can be opened in a browser 
+# and the same interactive plot can be looked at from there
+fig = tsc.plot()
+fig.write_html("my_interactive_plot.html")
 
 # static plot of specific signal, optional to save to .png
 tsc.plot_static("foo")
