@@ -541,19 +541,21 @@ class TimeSeriesConstrictor:
                                 column_name='resampled',
                                 metadata={})
 
-    def read_excel(self, path, index_col=0, **kwargs):
+    def read_excel(self, path, index_col=0, start_date='1970-01-01', stop_date='2100-01-01', **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, engine="openpyxl",**kwargs)
         self.dataframe.index = pd.to_datetime(self.dataframe.index)
         if (self.dataframe.index.dtype != self.dataframe.index.tz_localize(None).dtype):
             print("Note that timezone information has been removed from index at import!")
         self.dataframe.index = self.dataframe.index.tz_localize(None)
+        self.dataframe = self.dataframe[start_date:stop_date]
         
         for column in self.dataframe.columns:
             self.create_description(column)
 
-    def read_csv(self, path, index_col=0, **kwargs):
+    def read_csv(self, path, index_col=0, start_date='1970-01-01', stop_date='2100-01-01', **kwargs):
         self.dataframe = pd.read_csv(path, index_col=index_col, **kwargs)
         self.dataframe.index = pd.to_datetime(self.dataframe.index)
+        self.dataframe = self.dataframe[start_date:stop_date]
         
         for column in self.dataframe.columns:
             self.create_description(column)
@@ -730,7 +732,6 @@ class TimeSeriesConstrictor:
             out_of_range_return = (temp_df["out_of_range_binary"] * self.dataframe[target_column]).replace(0, np.nan)
             return out_of_range_return
 
-
     def write_to_excel(self, file_name):
         """
         Store data, metadata and descriptions to excel file
@@ -764,7 +765,6 @@ class TimeSeriesConstrictor:
 
         # read description
         self.description = pd.read_excel(path, sheet_name='description', index_col=0, engine="openpyxl").to_dict()
-        
         
     def write_summary_pptx(self, presentation_name):
         """
