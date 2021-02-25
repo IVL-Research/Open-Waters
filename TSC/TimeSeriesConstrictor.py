@@ -523,6 +523,23 @@ class TimeSeriesConstrictor:
                                  outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
                 return outlier_return
 
+    def resample(self, target_column, **kwargs):
+        """Implementation of pandas resample function with added functionality to store resampling metadata
+        Parameters
+        -----------
+        target_column : str
+            Target column in TSC.dataframe
+        **kwargs : dict
+            Optional keyword arguments to pd.resample()
+            """
+        resampled_data = pd.resample(self.dataframe[target_column], **kwargs)
+        add_preprocessed_column(self=self,
+                                data=resampled_data,
+                                method='resample',
+                                parameters=kwargs,
+                                used_column=target_column,
+                                column_name='resampled',
+                                metadata={})
 
     def read_excel(self, path, index_col=0, **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, engine="openpyxl",**kwargs)
