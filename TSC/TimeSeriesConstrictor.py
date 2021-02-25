@@ -532,13 +532,31 @@ class TimeSeriesConstrictor:
         **kwargs : dict
             Optional keyword arguments to pd.resample()
             """
-        resampled_data = pd.resample(self.dataframe[target_column], **kwargs)
+        resampled_data = self.dataframe[target_column].resample(**kwargs)
         add_preprocessed_column(self=self,
                                 data=resampled_data,
                                 method='resample',
                                 parameters=kwargs,
                                 used_column=target_column,
                                 column_name='resampled',
+                                metadata={})
+
+    def interpolate(self, target_column, **kwargs):
+        """Implementation of pandas interpolate function with added functionality to store interpolation metadata
+        Parameters
+        -----------
+        target_column : str
+            Target column in TSC.dataframe
+        **kwargs : dict
+            Optional keyword arguments to pd.interpolate()
+            """
+        interpolated_data = self.dataframe[target_column].interpolate(**kwargs)
+        add_preprocessed_column(self=self,
+                                data=interpolated_data,
+                                method='interpolate',
+                                parameters=kwargs,
+                                used_column=target_column,
+                                column_name='interpolated',
                                 metadata={})
 
     def read_excel(self, path, index_col=0, start_date='1970-01-01', stop_date='2100-01-01', **kwargs):
