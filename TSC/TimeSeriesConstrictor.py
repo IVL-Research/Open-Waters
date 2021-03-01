@@ -271,62 +271,6 @@ class TimeSeriesConstrictor:
         statistics = self.dataframe[target_column].describe()
         for ix, stat in enumerate(statistics):
             self.description[target_column][statistics.index[ix]] = stat
-        
-            
-    def smoothing(
-        self,
-        target_column,
-        smoothing_technique="exponential",
-        alpha=0.2,
-        window_size=3,
-        output_column_name="preprocessed",
-        **kwargs
-    ):
-        """
-        Smoothens data.
-        """
-
-
-
-        # Create name for column
-        new_column = self.create_target_column(output_column_name)
-        
-
-        if smoothing_technique == "exponential":
-            
-            # Create own column with smoothened data
-            # Är det enl nedan jag behöver skriva för att skicka vidare värden på alpha? Trodde det skulle räcka att bara 
-            # skriva "alpha"?
-            self.dataframe[new_column] = self.dataframe[
-                target_column].ewm(alpha=alpha, adjust=False).mean()
-            
-            self.dataframe[new_column][self.dataframe[target_column].isnull()]=np.nan
-            
-            # Create metadata dictionary for column with smoothened data
-            metadata_dict = {"method": "smoothing",
-                         "used_data_column": target_column,
-                         "smoothing_technique": smoothing_technique,
-                         "alpha": alpha}
-                            
-        
-        elif smoothing_technique == "movAv":
-            self.dataframe[new_column] = self.dataframe[target_column].rolling(window=window_size).mean()
-             
-            # Create metadata dictionary for column with smoothened data
-            metadata_dict = {"method": "smoothing",
-                         "used_data_column": target_column,
-                         "smoothing_technique": smoothing_technique,
-                         "window_size": window_size}
-                
-        
-        
-        
-        self.create_metadata(metadata_dict, new_column)
-        
-        self.create_description(new_column)
-        
-        
-        
 
     def add_preprocessed_column(self, data, method, parameters, target_column, column_name='preprocessed', metadata={},
                                 **kwargs):
@@ -579,20 +523,57 @@ class TimeSeriesConstrictor:
                                  outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
                 return outlier_return
 
+    def resample(self, target_column, **kwargs):
+        """Implementation of pandas resample function with added functionality to store resampling metadata
+        Parameters
+        -----------
+        target_column : str
+            Target column in TSC.dataframe
+        **kwargs : dict
+            Optional keyword arguments to pd.resample()
+            """
+        resampled_data = self.dataframe[target_column].resample(**kwargs)
+        add_preprocessed_column(self=self,
+                                data=resampled_data,
+                                method='resample',
+                                parameters=kwargs,
+                                used_column=target_column,
+                                column_name='resampled',
+                                metadata={})
 
-    def read_excel(self, path, index_col=0, **kwargs):
+    def interpolate(self, target_column, **kwargs):
+        """Implementation of pandas interpolate function with added functionality to store interpolation metadata
+        Parameters
+        -----------
+        target_column : str
+            Target column in TSC.dataframe
+        **kwargs : dict
+            Optional keyword arguments to pd.interpolate()
+            """
+        interpolated_data = self.dataframe[target_column].interpolate(**kwargs)
+        add_preprocessed_column(self=self,
+                                data=interpolated_data,
+                                method='interpolate',
+                                parameters=kwargs,
+                                used_column=target_column,
+                                column_name='interpolated',
+                                metadata={})
+
+    def read_excel(self, path, index_col=0, start_date='1970-01-01', stop_date='2100-01-01', **kwargs):
         self.dataframe = pd.read_excel(path, index_col=index_col, engine="openpyxl",**kwargs)
         self.dataframe.index = pd.to_datetime(self.dataframe.index)
         if (self.dataframe.index.dtype != self.dataframe.index.tz_localize(None).dtype):
             print("Note that timezone information has been removed from index at import!")
         self.dataframe.index = self.dataframe.index.tz_localize(None)
+        self.dataframe = self.dataframe[start_date:stop_date]
         
         for column in self.dataframe.columns:
             self.create_description(column)
 
-    def read_csv(self, path, index_col=0, **kwargs):
+    def read_csv(self, path, index_col=0, start_date='1970-01-01', stop_date='2100-01-01', **kwargs):
         self.dataframe = pd.read_csv(path, index_col=index_col, **kwargs)
         self.dataframe.index = pd.to_datetime(self.dataframe.index)
+        self.dataframe = self.dataframe[start_date:stop_date]
         
         for column in self.dataframe.columns:
             self.create_description(column)
@@ -769,7 +750,6 @@ class TimeSeriesConstrictor:
             out_of_range_return = (temp_df["out_of_range_binary"] * self.dataframe[target_column]).replace(0, np.nan)
             return out_of_range_return
 
-
     def write_to_excel(self, file_name):
         """
         Store data, metadata and descriptions to excel file
@@ -803,7 +783,6 @@ class TimeSeriesConstrictor:
 
         # read description
         self.description = pd.read_excel(path, sheet_name='description', index_col=0, engine="openpyxl").to_dict()
-        
         
     def write_summary_pptx(self, presentation_name):
         """
