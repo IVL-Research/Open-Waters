@@ -55,6 +55,7 @@ class TimeSeriesConstrictor:
                 marker_dict["size"] = self.metadata[col]["marker_size"]
             except:
                 pass
+            temp_data = temp_data.dropna()
             fig.add_trace(
                 go.Scattergl(
                     x=temp_data.index,
@@ -285,7 +286,7 @@ class TimeSeriesConstrictor:
             Name of method used for preprocessing (including package name), eg 'scipy.some_method'
         parameters : dict
             Dict of parameter values used for preprocessing, eg {'param1': 3, 'param2': 0.14}
-        used_column : str
+        target_column : str
             Name of column used for preprocessing
         column_name : str
             Name of added column
@@ -322,11 +323,10 @@ class TimeSeriesConstrictor:
 
         for col in encoded:
             new_column = self.create_target_column(col)
-            add_preprocessed_column(self=self,
-                                    data=encoded[col],
+            self.add_preprocessed_column(data=encoded[col],
                                     method='one_hot_encoded',
                                     parameters=kwargs,
-                                    used_column=target_column,
+                                    target_column=target_column,
                                     column_name=new_column,
                                     metadata={})
 
@@ -523,23 +523,37 @@ class TimeSeriesConstrictor:
                                  outlier_detection_temp_df["anomalyVec"].replace(0, np.nan)
                 return outlier_return
 
-    def resample(self, target_column, **kwargs):
+    def resample(self, target_column, rule, method = "mean", **kwargs):
         """Implementation of pandas resample function with added functionality to store resampling metadata
         Parameters
         -----------
         target_column : str
             Target column in TSC.dataframe
+        rule: str
+            Frequency of resampling. Example: "1H" means hourly resampling
+        method: str
+            Method to use for resampling. Currently only mean or median supported.
         **kwargs : dict
             Optional keyword arguments to pd.resample()
             """
-        resampled_data = self.dataframe[target_column].resample(**kwargs)
-        add_preprocessed_column(self=self,
-                                data=resampled_data,
-                                method='resample',
-                                parameters=kwargs,
-                                used_column=target_column,
-                                column_name='resampled',
-                                metadata={})
+        if method == "mean":
+            resampled_data = self.dataframe[target_column].resample(rule, **kwargs).mean()
+        elif method == "median":
+            resampled_data = self.dataframe[target_column].resample(rule, **kwargs).median()
+
+        column_name = self.create_target_column('resampled')
+
+        resampled_data = resampled_data.rename(column_name)
+        self.dataframe = self.dataframe.join(resampled_data, how="outer")
+
+        #column_name = self.create_target_column(column_name)
+        #self.dataframe[column_name] = data
+        md_dict = {'method': 'resample', 'target_column': target_column, "method2": method, 'rule': rule}
+
+        self.create_metadata(md_dict, column_name)
+
+        self.create_description(column_name)
+
 
     def interpolate(self, target_column, **kwargs):
         """Implementation of pandas interpolate function with added functionality to store interpolation metadata
@@ -551,11 +565,10 @@ class TimeSeriesConstrictor:
             Optional keyword arguments to pd.interpolate()
             """
         interpolated_data = self.dataframe[target_column].interpolate(**kwargs)
-        add_preprocessed_column(self=self,
-                                data=interpolated_data,
+        self.add_preprocessed_column(data=interpolated_data,
                                 method='interpolate',
                                 parameters=kwargs,
-                                used_column=target_column,
+                                target_column=target_column,
                                 column_name='interpolated',
                                 metadata={})
 
