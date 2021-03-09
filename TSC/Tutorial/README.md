@@ -10,4 +10,5 @@ To install Python, the package handler Anaconda is recommended. Follow the steps
 3. Start "Jupyter Notebook". Windows: press windows button and search for Jupyter Notebook
 4. A new window will be opened in your browser where you can see your file directory. Click your way to the TSC/Tutorial folder and open the TSC_tutorial.ipynb. 
 5. Keep following the instructions written inside the notebook. It is code written in blocks which you can run one by one by marking one of the grey blocks and pressing Run at the top.
-6. If you don't have the packages needed in the first cell of the notebook, it will cause an error. It can be fixed by opening "Anaconda prompt" (a terminal window) and writing "conda install plotly" - if the missing package is plotly.
+6. If you don't have the packages needed in the first cell of the notebook, it will cause an error. It can be fixed by opening "Anaconda prompt" (a terminal window) and writing "conda install plotly" - if the missing package is plotly. If that gives you any trouble, try writing "pip install plotly" in the anaconda prompt instead. Also note that the package imported as "import pptx" should be install as "python-pptx", so write "conda install python-pptx" or "pip install python-pptx" to install it.
+
