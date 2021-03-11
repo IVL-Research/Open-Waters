@@ -83,15 +83,18 @@ class TimeSeriesConstrictor:
             if y_column not in self.metadata.keys():
                 return
             temp_df = self.dataframe[[y_column]].copy()
+            temp_df = temp_df.dropna()
             temp_df['Time'] = temp_df.index
             fig, ax = plt.subplots(figsize=(12, 5))
-            self.dataframe[self.metadata[y_column]['used_data_column']].plot(ax=ax)
+            self.dataframe[self.metadata[y_column]['used_data_column']].dropna().plot(ax=ax)
             temp_df.plot(x='Time', y=y_column, kind='scatter', color='DarkOrange', ax=ax)
         else:
             # Set fig size suitable for time series
             plt.figure(figsize=(12, 5))
             # Plot y_column
-            self.dataframe[y_column].plot()
+            temp_df = self.dataframe[y_column].copy()
+            temp_df = temp_df.dropna()
+            temp_df.plot(marker="o",markersize=2)
 
         # Set axis labels
         try:
@@ -286,7 +289,7 @@ class TimeSeriesConstrictor:
             Name of method used for preprocessing (including package name), eg 'scipy.some_method'
         parameters : dict
             Dict of parameter values used for preprocessing, eg {'param1': 3, 'param2': 0.14}
-        target_column : str
+        used_data_column : str
             Name of column used for preprocessing
         column_name : str
             Name of added column
@@ -296,7 +299,7 @@ class TimeSeriesConstrictor:
 
         column_name = self.create_target_column(column_name)
         self.dataframe[column_name] = data
-        md_dict = {'method': method, 'target_column': target_column}
+        md_dict = {'method': method, 'used_data_column': target_column}
 
         for item in parameters:
             md_dict[item] = parameters[item]
@@ -548,7 +551,7 @@ class TimeSeriesConstrictor:
 
         #column_name = self.create_target_column(column_name)
         #self.dataframe[column_name] = data
-        md_dict = {'method': 'resample', 'target_column': target_column, "method2": method, 'rule': rule}
+        md_dict = {'method': 'resample', 'used_data_column': target_column, "method2": method, 'rule': rule}
 
         self.create_metadata(md_dict, column_name)
 
